@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>new app</title>
+    <link rel="stylesheet" href="datepickk.min.css" />
+
+    <link rel="stylesheet" href="https://unpkg.com/swiper@8/swiper-bundle.min.css" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<script src="webOSTVjs-1.2.4/webOSTV.js" charset="utf-8"></script>
+<script src="webOSTVjs-1.2.4/webOSTV-dev.js" charset="utf-8"></script>
+<script src="https://unpkg.com/swiper@8/swiper-bundle.min.js"></script>
+
+<body>
+    <div class="upper-body">
+        <div class="logo-container">
+            <a href="index.html">
+                <img draggable="false" src="./assets/images/logo.png" alt="" />
+            </a>
+            <img src="./assets/notif.svg" alt="" />
+        </div>
+    </div>
+    <div class="main-body">
+        <div class="left-container">
+            <div class="left-main-card">
+                <div class="upper-left-main">
+                    <h1>Your customized fitness guide</h1>
+                </div>
+                <div class="spacer"></div>
+                <div id="#main-button" class="button">
+                    <a href="secondpage.html">
+                        <h1>Let's Gym</h1>
+                    </a>
+                </div>
+            </div>
+            <div class="right-main-card">
+                <img src="./assets/images/main-card-pic.png" alt="" />
+            </div>
+        </div>
+
+        <div id="datepicker"></div>
+
+        <script src="datepickk.min.js"></script>
+        <script>
+            var datepicker = new Datepickk({
+                container: document.querySelector('#datepicker'),
+                inline: true,
+                range: true,
+                highlight: []
+            });
+            datepicker.setDate(new Date(2022, 3, 25));
+        </script>
+    </div>
+    <div class="swiper">
+        <!-- Additional required wrapper -->
+        <div class="swiper-wrapper">
+            <!-- Slides -->
+            <div class="swiper-slide">
+                <div style="flex-direction: row-reverse" class="slide">
+                    <div class="left-second-card">
+                        <h1>Arms</h1>
+                        <div class="amount">
+                            <p>30 exercices</p>
+                        </div>
+                        <div class="time">
+                            <img width="35px" style="margin-bottom: 5px" src="./assets/images/clock.png" alt="" />
+                            <p>45 minutes</p>
+                        </div>
+                    </div>
+                    <div class="right-second-card">
+                        <img src="./assets/images/arms.png" alt="" />
+                    </div>
+                </div>
+            </div>
+            <div class="swiper-slide">
+                <div class="slide">
+                    <div class="slide">
+                        <div class="left-second-card">
+                            <h1>Cardio</h1>
+                            <div class="amount">
+                                <p>19 exercices</p>
+                            </div>
+                            <div class="time">
+                                <img width="35px" style="margin-bottom: 5px" src="./assets/images/clock.png" alt="" />
+                                <p>30 minutes</p>
+                            </div>
+                        </div>
+                        <div class="right-second-card">
+                            <img src="./assets/images/cardio.png" alt="" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="swiper-slide">
+                <div class="slide">
+                    <div style="flex-direction: row-reverse" class="slide">
+                        <div class="left-second-card">
+                            <h1>Thighs</h1>
+                            <div class="amount">
+                                <p>25 exercices</p>
+                            </div>
+                            <div class="time">
+                                <img width="35px" style="margin-bottom: 5px" src="./assets/images/clock.png" alt="" />
+                                <p>40 minutes</p>
+                            </div>
+                        </div>
+                        <div class="right-second-card">
+                            <img src="./assets/images/thighs.png" alt="" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="swiper-slide">
+                <div class="slide">
+                    <div class="slide">
+                        <div class="left-second-card">
+                            <h1>Butt</h1>
+                            <div class="amount">
+                                <p>19 exercices</p>
+                            </div>
+                            <div class="time">
+                                <img width="35px" style="margin-bottom: 5px" src="./assets/images/clock.png" alt="" />
+                                <p>30 minutes</p>
+                            </div>
+                        </div>
+                        <div class="right-second-card">
+                            <img src="./assets/images/butt.png" alt="" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>

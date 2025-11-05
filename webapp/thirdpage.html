@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>new app</title>
+
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+</head>
+
+<script src="webOSTVjs-1.2.4/webOSTV.js" charset="utf-8"></script>
+<script src="webOSTVjs-1.2.4/webOSTV-dev.js" charset="utf-8"></script>
+<script src="https://unpkg.com/swiper@8/swiper-bundle.min.js"></script>
+
+<body>
+    <script src="./donutty.min.js"></script>
+
+    <div class="upper-body">
+        <div class="logo-container">
+            <a href="index.html">
+                <img draggable="false" src="./assets/images/logo.png" alt="" />
+            </a>
+        </div>
+    </div>
+    <div class="main-app">
+        <div class="camera-spot">
+            <video id="video" style="display: none;"></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        <div class="output">
+            <iframe width="520" height="355" src="https://www.youtube.com/embed/aclHkVaku9U?autoplay=1&mute=1&loop=1&playlist=aclHkVaku9U&showinfo=0&controls=1">
+        </iframe>
+            <div class="progress-card">
+            <h1>Squats</h1>
+            <p id="squat-count">0 times</p>
+            <div class="progress-charts">
+                <div id="donut-good" data-donutty data-radius="40" data-padding="0" data-round="true" data-color="#05667B" data-value="0">
+                    <h1 id="good-percentage">0%</h1>
+                </div>
+                <div id="donut-bad" data-donutty data-radius="40" data-padding="0" data-round="true" data-color="#FF6B6B" data-value="0">
+                    <h1 id="bad-percentage">0%</h1>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+    <script src="app.js "></script>
+    <script src="pose-detection.js"></script>
+</body>
+
+</html>
