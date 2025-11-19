@@ -1,4 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+
+const basename = import.meta.env.PROD ? '/virtual-coach-ui-ux-m2gi' : ''
 import { AuthProvider } from './context/AuthContext'
 import { WorkoutProvider } from './context/WorkoutContext'
 import Layout from './components/Layout'
@@ -13,7 +15,7 @@ function App() {
   return (
     <AuthProvider>
       <WorkoutProvider>
-        <Router>
+        <Router basename={basename}>
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
