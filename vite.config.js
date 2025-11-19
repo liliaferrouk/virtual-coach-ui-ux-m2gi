@@ -5,7 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/virtual-coach-ui-ux-m2gi/',
+  base: process.env.NODE_ENV === 'production' ? '/virtual-coach-ui-ux-m2gi/' : '/',
   plugins: [
     react(),
     tailwindcss(),
