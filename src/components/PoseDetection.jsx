@@ -70,8 +70,8 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'user',
-            width: { ideal: 640 },
-            height: { ideal: 480 }
+            width: { ideal: 720 },
+            height: { ideal: 850 }
           }
         })
 
@@ -91,8 +91,8 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
                 await poseRef.current.send({ image: videoRef.current })
               }
             },
-            width: 640,
-            height: 480
+            width: 720,
+            height: 850
           })
 
           cameraRef.current.start()
@@ -356,9 +356,9 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
       />
       <canvas
         ref={canvasRef}
-        width={640}
-        height={480}
-        className="w-full h-full object-contain"
+        width={720}
+        height={850}
+        className="w-full h-full object-cover"
       />
 
       {isLoading && (
