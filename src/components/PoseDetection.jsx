@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
-export default function PoseDetection({ exercise, onStatsUpdate }) {
+export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = true, sensitivity = 'normal', paused = false }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [feedback, setFeedback] = useState("");
+  const [displayStats, setDisplayStats] = useState({ reps: 0, goodForm: 0, badForm: 0 });
 
   // Refs for pose detection state
   const poseRef = useRef(null);
-  const cameraRef = useRef(null);
+  const rafRef = useRef(0);
   const statsRef = useRef({ reps: 0, goodForm: 0, badForm: 0 });
   const stateRef = useRef({
     isDescending: false,
@@ -17,6 +18,17 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
     lastRepTime: 0,
     holdFrames: 0,
     smoothedAngle: 180,
+    started: false,
+    lastPlankTick: 0,
+    minElbowAngle: 180,
+    minKneeAngle: 180,
+    kneePeakHeight: 1,
+    lastMotivationLeft: null,
+    lastSpokenAt: 0,
+    lastSpokenMsg: "",
+    prevKneeAngle: null,
+    prevElbowAngle: null,
+    lastMotionAt: Date.now(),
   });
 
   useEffect(() => {
@@ -24,6 +36,7 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
 
     const initPoseDetection = async () => {
       try {
+        if (stateRef.current.started) return; // prevent double init in StrictMode
         // Load MediaPipe scripts dynamically
         const loadScript = (src) => {
           return new Promise((resolve, reject) => {
@@ -72,14 +85,43 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
           processResults(results);
         });
 
-        // Get camera access
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "user",
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-          },
-        });
+        // Get camera access with fallbacks
+        const acquireStream = async () => {
+          const constraintsList = [
+            { video: { facingMode: { ideal: "user" }, width: { ideal: 640 }, height: { ideal: 480 } } },
+            { video: { facingMode: "user" } },
+            { video: true },
+            { video: { facingMode: "environment" } },
+          ];
+
+          // Try simple fallbacks first
+          for (const cons of constraintsList) {
+            try {
+              return await navigator.mediaDevices.getUserMedia(cons);
+            } catch (e) {
+              // continue trying
+            }
+          }
+
+          // Try specific deviceId if available
+          try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cams = devices.filter((d) => d.kind === "videoinput");
+            for (const cam of cams) {
+              try {
+                return await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: cam.deviceId } } });
+              } catch (_) {
+                /* keep trying next */
+              }
+            }
+          } catch (_) {
+            // ignore enumerateDevices failures
+          }
+
+          throw new Error("Unable to acquire camera stream");
+        };
+
+        const stream = await acquireStream();
 
         if (!mounted) {
           stream.getTracks().forEach((track) => track.stop());
@@ -90,27 +132,98 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
 
-          // Initialize camera
-          cameraRef.current = new window.Camera(videoRef.current, {
-            onFrame: async () => {
-              if (poseRef.current && videoRef.current) {
+          const frameLoop = async () => {
+            if (!mounted) return;
+            try {
+              if (!paused && poseRef.current && videoRef.current && videoRef.current.readyState >= 2) {
                 await poseRef.current.send({ image: videoRef.current });
               }
-            },
-            width: 480,
-            height: 640,
-          });
+            } catch (_) {
+              // ignore frame errors
+            }
+            rafRef.current = requestAnimationFrame(frameLoop);
+          };
 
-          cameraRef.current.start();
+          rafRef.current = requestAnimationFrame(frameLoop);
+          stateRef.current.started = true;
           setIsLoading(false);
         }
       } catch (err) {
         console.error("Pose detection error:", err);
         if (mounted) {
-          setError(err.message || "Failed to initialize camera");
+          let msg = err && err.name ? err.name + ": " : "";
+          const hint = (name) => {
+            switch (name) {
+              case "NotReadableError":
+                return "Camera is in use by another app or tab. Close other apps or tabs using the camera, then retry.";
+              case "NotAllowedError":
+              case "SecurityError":
+                return "Camera permission blocked. Allow access in browser site settings and OS privacy settings.";
+              case "NotFoundError":
+                return "No camera device found. Connect a camera or check drivers.";
+              case "OverconstrainedError":
+                return "Camera doesn’t support requested settings. Retrying with simpler settings failed.";
+              default:
+                return "Failed to initialize camera. Ensure you’re on HTTPS or localhost and permissions are granted.";
+            }
+          };
+          msg += hint(err?.name);
+          setError(msg);
           setIsLoading(false);
         }
       }
+    };
+
+    const speak = (text, opts = {}) => {
+      try {
+        if (!voiceEnabled) return;
+        const synth = window.speechSynthesis;
+        if (!synth || !text) return;
+        const now = Date.now();
+        const cooldown = opts.cooldownMs ?? 2000;
+        const plankCooldown = 6000;
+        const isPlankHint = /hold steady|align hips/i.test(text);
+        const effectiveCooldown = isPlankHint ? plankCooldown : cooldown;
+        if (text === stateRef.current.lastSpokenMsg && now - stateRef.current.lastSpokenAt < effectiveCooldown) return;
+        if (now - stateRef.current.lastSpokenAt < effectiveCooldown) return;
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 1;
+        u.pitch = 1;
+        u.volume = 1;
+        synth.speak(u);
+        stateRef.current.lastSpokenAt = now;
+        stateRef.current.lastSpokenMsg = text;
+      } catch (_) { /* ignore TTS errors */ }
+    };
+
+    const vibrate = (ms = 15) => {
+      try {
+        if (navigator.vibrate) navigator.vibrate(ms);
+      } catch (_) { /* ignore */ }
+    };
+
+    const setFeedbackAndSpeak = (text, opts) => {
+      setFeedback(text);
+      speak(text, opts);
+    };
+
+    const maybeMotivate = () => {
+      if (!exercise || !exercise.reps) return;
+      const isTimed = exercise.unit === 'seconds' || exercise.id === 'plank';
+      const left = Math.max(0, (exercise.reps || 0) - (statsRef.current.reps || 0));
+      if (left > 0 && ((isTimed && left <= 5) || (!isTimed && left <= 3))) {
+        if (stateRef.current.lastMotivationLeft !== left) {
+          const msg = isTimed ? `${left} seconds left, keep going!` : `Keep going! ${left} left`;
+          speak(msg, { cooldownMs: 1000 });
+          stateRef.current.lastMotivationLeft = left;
+        }
+      }
+    };
+
+    const thr = (base, type = 'angle') => {
+      if (sensitivity === 'lenient') return type === 'angle' ? base + 5 : base * 0.9;
+      if (sensitivity === 'strict') return type === 'angle' ? base - 5 : base * 1.1;
+      return base;
     };
 
     const processResults = (results) => {
@@ -129,21 +242,43 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
       ctx.restore();
 
       if (results.poseLandmarks) {
+        // Filter by visibility
+        const visThresh = 0.5;
+        const lms = results.poseLandmarks.map((p) => ({ ...p }));
+        const hasCore = [11,12,13,14,15,16,23,24,25,26,27,28].every((i)=> lms[i] && lms[i].visibility >= 0.2);
+        if (!hasCore) {
+          setFeedbackAndSpeak("Move into frame", { cooldownMs: 4000 });
+        }
         // Draw skeleton
-        drawSkeleton(ctx, results.poseLandmarks, canvas.width);
+        drawSkeleton(ctx, lms, canvas.width);
 
         // Analyze pose based on exercise type
         if (exercise.id === "squats") {
-          analyzeSquat(results.poseLandmarks, ctx, canvas);
+          analyzeSquat(lms, ctx, canvas);
         } else if (exercise.id === "pushups") {
-          analyzePushup(results.poseLandmarks, ctx, canvas);
+          analyzePushup(lms, ctx, canvas);
         } else if (exercise.id === "lunges") {
-          analyzeLunge(results.poseLandmarks, ctx, canvas);
+          analyzeLunge(lms, ctx, canvas);
         } else if (exercise.id === "jumping-jacks") {
-          analyzeJumpingJack(results.poseLandmarks, ctx, canvas);
+          analyzeJumpingJack(lms, ctx, canvas);
+        } else if (exercise.id === "crunches") {
+          analyzeCrunch(lms, ctx, canvas);
+        } else if (exercise.id === "tricep-dips") {
+          analyzeTricepDip(lms, ctx, canvas);
+        } else if (exercise.id === "high-knees") {
+          analyzeHighKnees(lms, ctx, canvas);
+        } else if (exercise.id === "plank") {
+          analyzePlank(lms, ctx, canvas);
         } else {
           // Generic rep counter for other exercises
           analyzeGeneric(results.poseLandmarks, ctx, canvas);
+        }
+
+        // Idle detection for gentle nudges
+        const nowTs = Date.now();
+        if (nowTs - stateRef.current.lastMotionAt > 3500) {
+          setFeedbackAndSpeak("Keep moving", { cooldownMs: 6000 });
+          stateRef.current.lastMotionAt = nowTs; // avoid repeated nudges
         }
       }
     };
@@ -206,6 +341,22 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
       return angle;
     };
 
+    const torsoLeanTooMuch = (shoulder, hip, threshold = 0.18) => {
+      if (!shoulder || !hip) return false;
+      return Math.abs(shoulder.x - hip.x) > threshold;
+    };
+
+    const kneeOverAnkle = (knee, ankle, tolerance = 0.12) => {
+      if (!knee || !ankle) return true;
+      return Math.abs(knee.x - ankle.x) <= tolerance;
+    };
+
+    const hipSag = (shoulder, hip, ankle) => {
+      if (!shoulder || !hip || !ankle) return false;
+      const bodyAngle = calculateAngle(shoulder, hip, ankle);
+      return bodyAngle < 155;
+    };
+
     const analyzeSquat = (landmarks, ctx, canvas) => {
       const hip = landmarks[24];
       const knee = landmarks[26];
@@ -223,31 +374,55 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
       const angle = stateRef.current.smoothedAngle;
       const now = Date.now();
 
+      // Track bottom depth while descending and motion detection
+      if (stateRef.current.isDescending) {
+        stateRef.current.minKneeAngle = Math.min(stateRef.current.minKneeAngle, angle);
+      }
+      const prev = stateRef.current.prevKneeAngle ?? angle;
+      const vel = angle - prev;
+      if (Math.abs(vel) > 0.7) stateRef.current.lastMotionAt = now;
+      stateRef.current.prevKneeAngle = angle;
+
       // Check for rep
-      if (angle < 110 && !stateRef.current.isDescending) {
+      if (angle < (105 + (sensitivity === 'lenient' ? 10 : sensitivity === 'strict' ? 0 : 5)) && !stateRef.current.isDescending) {
         stateRef.current.holdFrames++;
         if (stateRef.current.holdFrames >= 3) {
           stateRef.current.isDescending = true;
+          stateRef.current.minKneeAngle = angle;
           stateRef.current.holdFrames = 0;
         }
-      } else if (angle > 160 && stateRef.current.isDescending) {
+      } else if (angle > (155 + (sensitivity === 'strict' ? 5 : 0)) && stateRef.current.isDescending) {
         if (now - stateRef.current.lastRepTime > 800) {
-          // Check form
-          const isGoodForm = angle < 105 && hip.y > knee.y - 0.05;
+          // Check form using tracked bottom
+          const torso = landmarks[12];
+          const depthOK = stateRef.current.minKneeAngle < (sensitivity === 'strict' ? 100 : sensitivity === 'lenient' ? 110 : 105);
+          const hipsBelowKnee = hip.y > knee.y - 0.02;
+          const backUpright = torso && !torsoLeanTooMuch(torso, hip, 0.2);
+          const kneeTrack = kneeOverAnkle(knee, ankle, 0.12);
+          const faults = [];
+          if (!depthOK) faults.push("Go deeper");
+          if (!hipsBelowKnee) faults.push("Lower hips");
+          if (!backUpright) faults.push("Keep chest up");
+          if (!kneeTrack) faults.push("Knee over ankle");
+          const isGoodForm = faults.length === 0;
 
           statsRef.current.reps++;
           if (isGoodForm) {
             statsRef.current.goodForm++;
-            setFeedback("Good form!");
+            setFeedbackAndSpeak("Good squat");
+            vibrate(15);
           } else {
             statsRef.current.badForm++;
-            setFeedback("Go deeper!");
+            setFeedbackAndSpeak(faults.join(" • "));
           }
 
+          setDisplayStats({ ...statsRef.current });
           onStatsUpdate({ ...statsRef.current });
+          maybeMotivate();
           stateRef.current.lastRepTime = now;
         }
         stateRef.current.isDescending = false;
+        stateRef.current.minKneeAngle = 180;
       }
 
       // Draw feedback
@@ -260,23 +435,49 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
       const shoulder = landmarks[12];
       const elbow = landmarks[14];
       const wrist = landmarks[16];
+      const hip = landmarks[24];
+      const ankle = landmarks[28];
 
       if (!shoulder || !elbow || !wrist) return;
 
       const elbowAngle = calculateAngle(shoulder, elbow, wrist);
+      const bodyAngle = calculateAngle(shoulder, hip, ankle);
       const now = Date.now();
 
-      if (elbowAngle < 90 && !stateRef.current.isDescending) {
+      if (stateRef.current.isDescending) {
+        stateRef.current.minElbowAngle = Math.min(stateRef.current.minElbowAngle, elbowAngle);
+      }
+      const prevE = stateRef.current.prevElbowAngle ?? elbowAngle;
+      const velE = elbowAngle - prevE;
+      if (Math.abs(velE) > 0.7) stateRef.current.lastMotionAt = now;
+      stateRef.current.prevElbowAngle = elbowAngle;
+
+      if (elbowAngle < (sensitivity === 'strict' ? 90 : 95) && !stateRef.current.isDescending) {
         stateRef.current.isDescending = true;
-      } else if (elbowAngle > 160 && stateRef.current.isDescending) {
+        stateRef.current.minElbowAngle = elbowAngle;
+      } else if (elbowAngle > (sensitivity === 'strict' ? 165 : 160) && stateRef.current.isDescending) {
         if (now - stateRef.current.lastRepTime > 800) {
           statsRef.current.reps++;
-          statsRef.current.goodForm++;
+          const depthOK = stateRef.current.minElbowAngle <= (sensitivity === 'strict' ? 90 : 95);
+          const straightBody = bodyAngle > (sensitivity === 'strict' ? 165 : 160) && !hipSag(shoulder, hip, ankle);
+          const faults = [];
+          if (!depthOK) faults.push("Go deeper");
+          if (!straightBody) faults.push("Keep body straight");
+          if (faults.length === 0) {
+            statsRef.current.goodForm++;
+            setFeedbackAndSpeak("Good rep");
+            vibrate(15);
+          } else {
+            statsRef.current.badForm++;
+            setFeedbackAndSpeak(faults.join(" • "));
+          }
+          setDisplayStats({ ...statsRef.current });
           onStatsUpdate({ ...statsRef.current });
+          maybeMotivate();
           stateRef.current.lastRepTime = now;
-          setFeedback("Rep counted!");
         }
         stateRef.current.isDescending = false;
+        stateRef.current.minElbowAngle = 180;
       }
     };
 
@@ -290,17 +491,37 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
       const kneeAngle = calculateAngle(hip, knee, ankle);
       const now = Date.now();
 
-      if (kneeAngle < 100 && !stateRef.current.isDescending) {
+      if (stateRef.current.isDescending) {
+        stateRef.current.minKneeAngle = Math.min(stateRef.current.minKneeAngle, kneeAngle);
+      }
+      const prevLK = stateRef.current.prevKneeAngle ?? kneeAngle;
+      const velLK = kneeAngle - prevLK;
+      if (Math.abs(velLK) > 0.7) stateRef.current.lastMotionAt = now;
+      stateRef.current.prevKneeAngle = kneeAngle;
+
+      if (kneeAngle < (sensitivity === 'strict' ? 100 : 105) && !stateRef.current.isDescending) {
         stateRef.current.isDescending = true;
-      } else if (kneeAngle > 160 && stateRef.current.isDescending) {
+        stateRef.current.minKneeAngle = kneeAngle;
+      } else if (kneeAngle > (sensitivity === 'strict' ? 165 : 160) && stateRef.current.isDescending) {
         if (now - stateRef.current.lastRepTime > 1000) {
           statsRef.current.reps++;
-          statsRef.current.goodForm++;
+          const depthOK = stateRef.current.minKneeAngle < (sensitivity === 'strict' ? 95 : 100);
+          const shinVertical = kneeOverAnkle(knee, ankle, 0.12);
+          const torso = landmarks[12];
+          const upright = torso && !torsoLeanTooMuch(torso, hip, 0.22);
+          const faults = [];
+          if (!depthOK) faults.push("Go deeper");
+          if (!shinVertical) faults.push("Knee over ankle");
+          if (!upright) faults.push("Keep torso upright");
+          if (faults.length === 0) { statsRef.current.goodForm++; setFeedbackAndSpeak("Good lunge"); vibrate(15); }
+          else { statsRef.current.badForm++; setFeedbackAndSpeak(faults.join(" • ")); }
+          setDisplayStats({ ...statsRef.current });
           onStatsUpdate({ ...statsRef.current });
+          maybeMotivate();
           stateRef.current.lastRepTime = now;
-          setFeedback("Rep counted!");
         }
         stateRef.current.isDescending = false;
+        stateRef.current.minKneeAngle = 180;
       }
     };
 
@@ -318,17 +539,143 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
 
       if (armsUp && !stateRef.current.isAscending) {
         stateRef.current.isAscending = true;
+        stateRef.current.lastMotionAt = now;
       } else if (!armsUp && stateRef.current.isAscending) {
         if (now - stateRef.current.lastRepTime > 400) {
           statsRef.current.reps++;
-          statsRef.current.goodForm++;
+          const highEnough =
+            leftWrist.y < leftShoulder.y - 0.1 && rightWrist.y < rightShoulder.y - 0.1;
+          if (highEnough) { statsRef.current.goodForm++; setFeedbackAndSpeak("Jump!"); vibrate(10); }
+          else { statsRef.current.badForm++; setFeedbackAndSpeak("Arms higher"); }
+          setDisplayStats({ ...statsRef.current });
           onStatsUpdate({ ...statsRef.current });
+          maybeMotivate();
           stateRef.current.lastRepTime = now;
-          setFeedback("Jump!");
         }
         stateRef.current.isAscending = false;
       }
     };
+
+    const analyzeHighKnees = (landmarks, ctx, canvas) => {
+      const leftKnee = landmarks[25];
+      const rightKnee = landmarks[26];
+      const hipL = landmarks[23];
+      const hipR = landmarks[24];
+      if (!leftKnee || !rightKnee || !hipL || !hipR) return;
+      const hipY = Math.min(hipL.y, hipR.y);
+      const kneeUp = (leftKnee.y < hipY - 0.02) || (rightKnee.y < hipY - 0.02);
+      const now = Date.now();
+      if (kneeUp && !stateRef.current.isAscending) {
+        stateRef.current.isAscending = true;
+        stateRef.current.kneePeakHeight = Math.min(leftKnee.y, rightKnee.y);
+        stateRef.current.lastMotionAt = now;
+      } else if (!kneeUp && stateRef.current.isAscending) {
+        if (now - stateRef.current.lastRepTime > 350) {
+          statsRef.current.reps++;
+          const high = stateRef.current.kneePeakHeight < hipY - 0.08;
+          if (high) { statsRef.current.goodForm++; setFeedbackAndSpeak("Knees up!"); vibrate(10); }
+          else { statsRef.current.badForm++; setFeedbackAndSpeak("Higher knees"); }
+          onStatsUpdate({ ...statsRef.current });
+          maybeMotivate();
+          stateRef.current.lastRepTime = now;
+        }
+        stateRef.current.isAscending = false;
+        stateRef.current.kneePeakHeight = 1;
+      }
+    }
+
+    const analyzeCrunch = (landmarks, ctx, canvas) => {
+      const shoulder = landmarks[12];
+      const hip = landmarks[24];
+      const knee = landmarks[26];
+      if (!shoulder || !hip || !knee) return;
+      // Shoulder moves towards knee on crunch
+      const distY = shoulder.y - hip.y; // negative when shoulder above hip
+      const now = Date.now();
+      if (distY < -0.08 && !stateRef.current.isAscending) {
+        stateRef.current.isAscending = true;
+        stateRef.current.lastMotionAt = now;
+      } else if (distY > -0.02 && stateRef.current.isAscending) {
+        if (now - stateRef.current.lastRepTime > 700) {
+          statsRef.current.reps++;
+          // Basic form: keep knee bent (knee angle < 150)
+          const kneeAngle = calculateAngle(landmarks[24], landmarks[26], landmarks[28]);
+          const rangeOK = distY < -0.1; // enough torso curl
+          const kneesBent = kneeAngle < 150;
+          const faults = [];
+          if (!rangeOK) faults.push("Curl more");
+          if (!kneesBent) faults.push("Bend knees");
+          if (faults.length === 0) { statsRef.current.goodForm++; setFeedbackAndSpeak("Nice crunch"); vibrate(10); }
+          else { statsRef.current.badForm++; setFeedbackAndSpeak(faults.join(" • ")); }
+          onStatsUpdate({ ...statsRef.current });
+          maybeMotivate();
+          stateRef.current.lastRepTime = now;
+        }
+        stateRef.current.isAscending = false;
+      }
+    }
+
+    const analyzeTricepDip = (landmarks, ctx, canvas) => {
+      const shoulder = landmarks[12];
+      const elbow = landmarks[14];
+      const wrist = landmarks[16];
+      if (!shoulder || !elbow || !wrist) return;
+      const elbowAngle = calculateAngle(shoulder, elbow, wrist);
+      const now = Date.now();
+      if (stateRef.current.isDescending) {
+        stateRef.current.minElbowAngle = Math.min(stateRef.current.minElbowAngle, elbowAngle);
+      }
+      if (elbowAngle < 90 && !stateRef.current.isDescending) {
+        stateRef.current.isDescending = true;
+        stateRef.current.minElbowAngle = elbowAngle;
+      } else if (elbowAngle > 160 && stateRef.current.isDescending) {
+        if (now - stateRef.current.lastRepTime > 800) {
+          statsRef.current.reps++;
+          const depthOK = stateRef.current.minElbowAngle <= 90;
+          if (depthOK) { statsRef.current.goodForm++; setFeedbackAndSpeak("Dip rep!"); vibrate(10); }
+          else { statsRef.current.badForm++; setFeedbackAndSpeak("Go deeper"); }
+          onStatsUpdate({ ...statsRef.current });
+          maybeMotivate();
+          stateRef.current.lastRepTime = now;
+        }
+        stateRef.current.isDescending = false;
+        stateRef.current.minElbowAngle = 180;
+      }
+    }
+
+    const analyzePlank = (landmarks, ctx, canvas) => {
+      // Time under tension counter when in good plank form
+      const shoulder = landmarks[12];
+      const hip = landmarks[24];
+      const ankle = landmarks[28];
+      if (!shoulder || !hip || !ankle) return;
+      const bodyAngle = calculateAngle(shoulder, hip, ankle);
+      const hipsLevel = Math.abs(hip.y - ((shoulder.y + ankle.y) / 2)) < 0.12;
+      const straight = bodyAngle > 155; // near straight
+      const goodForm = hipsLevel && straight;
+      const now = Date.now();
+      if (goodForm) {
+        // Tick every 1000ms
+        if (now - stateRef.current.lastPlankTick >= 1000) {
+          statsRef.current.reps += 1; // seconds as reps
+          statsRef.current.goodForm += 1;
+          stateRef.current.lastPlankTick = now;
+          setDisplayStats({ ...statsRef.current });
+          onStatsUpdate({ ...statsRef.current });
+          setFeedbackAndSpeak("Hold steady");
+        }
+      } else {
+        if (now - stateRef.current.lastPlankTick >= 1000) {
+          // count time but mark bad form to influence percentage
+          statsRef.current.reps += 1;
+          statsRef.current.badForm += 1;
+          stateRef.current.lastPlankTick = now;
+          setDisplayStats({ ...statsRef.current });
+          onStatsUpdate({ ...statsRef.current });
+          setFeedbackAndSpeak("Align hips & back");
+        }
+      }
+    }
 
     const analyzeGeneric = (landmarks, ctx, canvas) => {
       // Simple motion detection for other exercises
@@ -341,14 +688,12 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
 
     return () => {
       mounted = false;
-      if (cameraRef.current) {
-        cameraRef.current.stop();
-      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (videoRef.current?.srcObject) {
         videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [exercise, onStatsUpdate]);
+  }, [exercise, onStatsUpdate, paused, sensitivity, voiceEnabled]);
 
   if (error) {
     return (
@@ -395,9 +740,49 @@ export default function PoseDetection({ exercise, onStatsUpdate }) {
         </div>
       )}
 
+      {!isLoading && (
+        <div className="absolute top-3 left-3 flex items-center gap-2">
+          <span className="chip">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="12"/></svg>
+            {displayStats.reps || 0}
+          </span>
+          <span className="chip chip-success">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6L9 17l-5-5"/></svg>
+            {displayStats.reps ? Math.round((displayStats.goodForm / Math.max(1, displayStats.reps)) * 100) : 0}%
+          </span>
+          <span className="chip chip-accent">
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {displayStats.badForm || 0}
+          </span>
+        </div>
+      )}
+
       {feedback && !isLoading && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/60 rounded-lg">
           <p className="text-sm font-medium">{feedback}</p>
+        </div>
+      )}
+
+      {paused && !isLoading && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+          <p className="text-2xl font-semibold">Paused</p>
+        </div>
+      )}
+
+      {!isLoading && exercise?.reps && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[90%] max-w-md">
+          <div className="flex items-center justify-between mb-1 text-xs text-white/70">
+            <span>{exercise.unit === 'seconds' || exercise.id === 'plank' ? 'Seconds' : 'Reps'}</span>
+            <span>
+              {Math.min(displayStats.reps || 0, exercise.reps)} / {exercise.reps}
+            </span>
+          </div>
+          <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[var(--color-primary)] transition-all"
+              style={{ width: `${Math.min(100, ((displayStats.reps || 0) / (exercise.reps || 1)) * 100)}%` }}
+            />
+          </div>
         </div>
       )}
     </div>

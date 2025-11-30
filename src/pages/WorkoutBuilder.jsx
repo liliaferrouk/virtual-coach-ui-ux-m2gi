@@ -23,12 +23,12 @@ const EXERCISES = {
   ],
   core: [
     { id: 'crunches', name: 'Crunches', reps: 20, hasTracking: true },
-    { id: 'plank', name: 'Plank', reps: 30, hasTracking: true },
+    { id: 'plank', name: 'Plank', reps: 30, hasTracking: true, unit: 'seconds' },
     { id: 'russian-twists', name: 'Russian Twists', reps: 20, hasTracking: false },
   ],
   cardio: [
     { id: 'jumping-jacks', name: 'Jumping Jacks', reps: 30, hasTracking: true },
-    { id: 'burpees', name: 'Burpees', reps: 10, hasTracking: true },
+    { id: 'burpees', name: 'Burpees', reps: 10, hasTracking: false },
     { id: 'high-knees', name: 'High Knees', reps: 30, hasTracking: true },
   ],
 }
@@ -166,7 +166,7 @@ export default function WorkoutBuilder() {
                           </span>
                         )}
                       </div>
-                      <span className="text-sm text-white/60">{exercise.reps} reps</span>
+                      <span className="text-sm text-white/60">{exercise.reps} {exercise.unit === 'seconds' ? 'sec' : 'reps'}</span>
                     </button>
                   ))}
                 </div>
@@ -226,7 +226,7 @@ export default function WorkoutBuilder() {
                   >
                     +
                   </button>
-                  <span className="text-sm text-white/60 ml-2">reps</span>
+                  <span className="text-sm text-white/60 ml-2">{exercise.unit === 'seconds' ? 'sec' : 'reps'}</span>
                 </div>
               </div>
             ))}

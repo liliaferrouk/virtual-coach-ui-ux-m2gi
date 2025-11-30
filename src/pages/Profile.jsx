@@ -29,7 +29,14 @@ export default function Profile() {
   }
 
   const totalReps = workoutHistory.reduce((sum, w) => sum + (w.stats?.totalReps || 0), 0)
-  const totalMinutes = workoutHistory.reduce((sum, w) => sum + (w.duration || 0), 0)
+  const totalSeconds = workoutHistory.reduce((sum, w) => sum + (w.duration || 0), 0)
+
+  const formatDuration = (total) => {
+    if (!total || isNaN(total)) return '00:00'
+    const mins = Math.floor(total / 60)
+    const secs = total % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
 
   if (!isAuthenticated) {
     return (
@@ -49,7 +56,7 @@ export default function Profile() {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-3 bg-[var(--color-bg-card)] border border-white/10 rounded-xl focus:border-[var(--color-primary)] outline-none"
+                className="w-full px-4 py-3 card focus:border-[var(--color-primary)] outline-none"
                 required={!isLogin}
               />
             </div>
@@ -61,7 +68,7 @@ export default function Profile() {
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-3 bg-[var(--color-bg-card)] border border-white/10 rounded-xl focus:border-[var(--color-primary)] outline-none"
+              className="w-full px-4 py-3 card focus:border-[var(--color-primary)] outline-none"
               required
             />
           </div>
@@ -72,7 +79,7 @@ export default function Profile() {
               type="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full px-4 py-3 bg-[var(--color-bg-card)] border border-white/10 rounded-xl focus:border-[var(--color-primary)] outline-none"
+              className="w-full px-4 py-3 card focus:border-[var(--color-primary)] outline-none"
               required
             />
           </div>
@@ -81,10 +88,7 @@ export default function Profile() {
             <p className="text-[var(--color-accent)] text-sm">{error}</p>
           )}
 
-          <button
-            type="submit"
-            className="w-full py-4 rounded-xl bg-[var(--color-primary)] font-semibold"
-          >
+          <button type="submit" className="w-full btn btn-primary">
             {isLogin ? 'Log In' : 'Sign Up'}
           </button>
         </form>
@@ -99,7 +103,7 @@ export default function Profile() {
           </button>
         </p>
 
-        <div className="mt-8 p-4 bg-[var(--color-bg-card)] rounded-xl border border-white/10">
+        <div className="mt-8 p-4 card">
           <p className="text-sm text-white/60">
             You can use the app without an account, but your data will only be saved locally on this device.
           </p>
@@ -113,7 +117,7 @@ export default function Profile() {
       <h1 className="text-2xl font-bold mb-6">Profile</h1>
 
       {/* User info */}
-      <div className="bg-[var(--color-bg-card)] rounded-xl p-4 border border-white/10 mb-6">
+      <div className="card p-4 mb-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-[var(--color-primary)] rounded-full flex items-center justify-center">
             <span className="text-xl font-bold">{user.name?.charAt(0).toUpperCase()}</span>
@@ -127,17 +131,17 @@ export default function Profile() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="bg-[var(--color-bg-card)] rounded-xl p-4 text-center">
+        <div className="card p-4 text-center">
           <p className="text-2xl font-bold">{workoutHistory.length}</p>
           <p className="text-xs text-white/60">Workouts</p>
         </div>
-        <div className="bg-[var(--color-bg-card)] rounded-xl p-4 text-center">
+        <div className="card p-4 text-center">
           <p className="text-2xl font-bold">{totalReps}</p>
           <p className="text-xs text-white/60">Total Reps</p>
         </div>
-        <div className="bg-[var(--color-bg-card)] rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold">{totalMinutes}</p>
-          <p className="text-xs text-white/60">Minutes</p>
+        <div className="card p-4 text-center">
+          <p className="text-2xl font-bold">{formatDuration(totalSeconds)}</p>
+          <p className="text-xs text-white/60">Time</p>
         </div>
       </div>
 
@@ -149,10 +153,10 @@ export default function Profile() {
             <button
               key={level}
               onClick={() => updatePreferences({ fitnessLevel: level })}
-              className={`flex-1 py-2 rounded-lg text-sm capitalize ${
+              className={`flex-1 py-2 rounded-lg text-sm capitalize transition-colors ${
                 userPreferences.fitnessLevel === level
                   ? 'bg-[var(--color-primary)]'
-                  : 'bg-white/10'
+                  : 'bg-white/10 hover:bg-white/20'
               }`}
             >
               {level}
@@ -161,10 +165,7 @@ export default function Profile() {
         </div>
       </div>
 
-      <button
-        onClick={logout}
-        className="w-full py-3 rounded-xl border border-[var(--color-accent)] text-[var(--color-accent)]"
-      >
+      <button onClick={logout} className="w-full btn btn-outline text-[var(--color-accent)] border-[var(--color-accent)]">
         Log Out
       </button>
     </div>
