@@ -30,6 +30,8 @@ export default function ActiveWorkout() {
   const recognitionRef = useRef(null);
   const micStreamRef = useRef(null);
   const [micError, setMicError] = useState("");
+  const [nextCountdown, setNextCountdown] = useState(0);
+  const advanceGuardRef = useRef(false);
 
   // Redirect if no workout
   useEffect(() => {
@@ -38,17 +40,17 @@ export default function ActiveWorkout() {
     }
   }, [currentWorkout, navigate]);
 
-  // --- FIX 1: UPDATED TIMER LOGIC ---
+  // --- Timer logic ---
   // Only run the timer if we are NOT showing the rating screen
   useEffect(() => {
     let timer;
-    if (!showRating && !isPaused) {
+    if (!showRating && !isPaused && nextCountdown === 0) {
       timer = setInterval(() => {
         setElapsedTime((prev) => prev + 1);
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [showRating, isPaused]);
+  }, [showRating, isPaused, nextCountdown]);
 
   if (!currentWorkout) return null;
 
@@ -56,6 +58,50 @@ export default function ActiveWorkout() {
   const isLastExercise =
     currentExerciseIndex === currentWorkout.exercises.length - 1;
   const isTimed = currentExercise.unit === 'seconds' || currentExercise.id === 'plank';
+
+  // Auto-advance when target reached
+  useEffect(() => {
+    if (showRating || isPaused || resumeCountdown > 0) return;
+    const target = Math.max(1, currentExercise.reps || 0);
+    if (isTimed) {
+      // For timed exercises, reps represents seconds elapsed
+      if (!advanceGuardRef.current && exerciseStats.reps >= target) {
+        advanceGuardRef.current = true;
+        setNextCountdown(3);
+        const id = setInterval(() => {
+          setNextCountdown((c) => {
+            if (c <= 1) {
+              clearInterval(id);
+              handleExerciseComplete();
+              return 0;
+            }
+            return c - 1;
+          });
+        }, 1000);
+      }
+    } else {
+      // For rep-based exercises, require good-form reps to meet target
+      if (!advanceGuardRef.current && exerciseStats.goodForm >= target) {
+        advanceGuardRef.current = true;
+        setNextCountdown(3);
+        const id = setInterval(() => {
+          setNextCountdown((c) => {
+            if (c <= 1) {
+              clearInterval(id);
+              handleExerciseComplete();
+              return 0;
+            }
+            return c - 1;
+          });
+        }, 1000);
+      }
+    }
+  }, [exerciseStats.reps, exerciseStats.goodForm, currentExerciseIndex, isPaused, resumeCountdown, showRating, isTimed, currentExercise.reps]);
+
+  // Reset auto-advance guard when exercise changes
+  useEffect(() => {
+    advanceGuardRef.current = false;
+  }, [currentExerciseIndex]);
 
   const handleExerciseComplete = () => {
     updateExerciseProgress(currentExercise.id, exerciseStats);
@@ -65,6 +111,7 @@ export default function ActiveWorkout() {
     } else {
       setCurrentExerciseIndex((prev) => prev + 1);
       setExerciseStats({ reps: 0, goodForm: 0, badForm: 0 });
+      advanceGuardRef.current = false;
     }
   };
 
@@ -438,7 +485,7 @@ export default function ActiveWorkout() {
               onStatsUpdate={setExerciseStats}
               voiceEnabled={voiceOn}
               sensitivity={sensitivity}
-              paused={isPaused || resumeCountdown > 0}
+              paused={isPaused || resumeCountdown > 0 || nextCountdown > 0}
             />
             
             {/* PROMINENT LIVE STATS OVERLAY - Bottom so it doesn't block camera */}
@@ -567,6 +614,23 @@ export default function ActiveWorkout() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {nextCountdown > 0 && (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 animate-fade-in">
+          <div className="text-center p-8 rounded-2xl bg-[var(--color-bg-card)]/50 backdrop-blur-lg border border-white/20 shadow-2xl animate-scale-in">
+            <p className="text-white/80 mb-4 text-lg font-medium">Next exercise in</p>
+            <div className="relative w-32 h-32 mx-auto mb-4">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-light)] animate-pulse" style={{ opacity: 0.2 }}></div>
+              <div className="absolute inset-2 rounded-full bg-[var(--color-bg-dark)] flex items-center justify-center">
+                <p className="text-7xl font-bold bg-gradient-to-br from-[var(--color-primary-light)] to-[var(--color-primary)] bg-clip-text text-transparent animate-pulse">
+                  {nextCountdown}
+                </p>
+              </div>
+            </div>
+            <p className="text-white/60 text-sm">Great job!</p>
           </div>
         </div>
       )}
