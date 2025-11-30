@@ -27,8 +27,8 @@ export default function History() {
 
   return (
     <div className="p-4 pb-8 animate-fade-in">
-      <h1 className="text-2xl font-bold mb-2">Workout History</h1>
-      <p className="text-white/60 mb-6">
+      <h1 className="text-2xl font-bold mb-2 heading-gradient">Workout History</h1>
+      <p className="text-white/70 mb-6">
         {workoutHistory.length} workout{workoutHistory.length !== 1 ? "s" : ""}{" "}
         completed
       </p>
@@ -41,10 +41,7 @@ export default function History() {
       ) : (
         <div className="space-y-4">
           {workoutHistory.map((workout, index) => (
-            <div
-              key={index}
-              className="bg-[var(--color-bg-card)] rounded-xl p-4 border border-white/10"
-            >
+            <div key={index} className="card p-4">
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-semibold">{workout.name || "Workout"}</h3>
@@ -54,29 +51,29 @@ export default function History() {
                 </div>
                 {workout.rating && (
                   <div className="text-right">
-                    <span className="text-lg font-bold text-[var(--color-primary)]">
+                    <span className="chip chip-success">
                       {workout.rating}
                     </span>
-                    <span className="text-sm text-white/60">/10</span>
+                    <span className="text-sm text-white/60 ml-1">/10</span>
                   </div>
                 )}
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-white/5 rounded-lg p-2">
+                <div className="glass p-2">
                   {/* --- UTILISATION DU NOUVEAU FORMAT --- */}
                   <p className="font-semibold">
                     {formatDuration(workout.duration)}
                   </p>
                   <p className="text-xs text-white/60">time</p>
                 </div>
-                <div className="bg-white/5 rounded-lg p-2">
+                <div className="glass p-2">
                   <p className="font-semibold">
                     {workout.stats?.totalReps || 0}
                   </p>
                   <p className="text-xs text-white/60">reps</p>
                 </div>
-                <div className="bg-white/5 rounded-lg p-2">
+                <div className="glass p-2">
                   <p className="font-semibold text-[var(--color-success)]">
                     {getFormPercentage(workout.stats)}%
                   </p>
@@ -88,10 +85,7 @@ export default function History() {
               <div className="mt-3 pt-3 border-t border-white/10">
                 {/* ... code existant pour la liste des exercices ... */}
                 {workout.exercises?.map((exercise, i) => (
-                  <span
-                    key={i}
-                    className="text-xs px-2 py-1 bg-white/10 rounded-full mr-1"
-                  >
+                  <span key={i} className="chip mr-1">
                     {exercise.name}
                   </span>
                 ))}
