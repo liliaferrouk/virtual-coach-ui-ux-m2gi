@@ -109,18 +109,41 @@ export default function ActiveWorkout() {
 
   if (showRating) {
     return (
-      <div className="p-4 pb-8 animate-fade-in">
-        <h1 className="text-2xl font-bold mb-2 text-center">
-          Workout Complete!
-        </h1>
-        <p className="text-white/60 text-center mb-8">
-          Great job! How would you rate this session?
-        </p>
+      <div className="p-3 pb-4 animate-fade-in">
+        <div className="text-center mb-6 animate-scale-in">
+          <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-[var(--color-success)]/30 to-[var(--color-success)]/10 flex items-center justify-center border-4 border-[var(--color-success)]/50">
+            <svg className="w-8 h-8 text-[var(--color-success)]" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold heading-gradient mb-1.5">
+            Workout Complete! 🎉
+          </h1>
+          <p className="text-white/70 text-sm">
+            Great job! Rate this session
+          </p>
+        </div>
 
-        <div className="bg-[var(--color-bg-card)] rounded-xl p-6 mb-8">
-          <div className="text-center mb-6">
-            <span className="text-4xl font-bold">{rating}</span>
-            <span className="text-white/60">/10</span>
+        <div className="card p-4 mb-4 border-[var(--color-primary)]/30">
+          <div className="text-center mb-4">
+            <div className="flex items-center justify-center gap-1.5 mb-2">
+              {[...Array(10)].map((_, i) => (
+                <svg
+                  key={i}
+                  className={`w-5 h-5 transition-all duration-200 ${
+                    i < rating ? 'text-[var(--color-warning)] scale-110' : 'text-white/20'
+                  }`}
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              ))}
+            </div>
+            <div className="mb-3">
+              <span className="text-4xl font-bold bg-gradient-to-r from-[var(--color-warning)] to-[var(--color-warning)]/70 bg-clip-text text-transparent">{rating}</span>
+              <span className="text-white/60 text-xl">/10</span>
+            </div>
           </div>
           <input
             type="range"
@@ -128,125 +151,167 @@ export default function ActiveWorkout() {
             max="10"
             value={rating}
             onChange={(e) => setRating(parseInt(e.target.value))}
-            className="w-full"
+            className="w-full accent-[var(--color-primary)] cursor-pointer"
+            style={{
+              height: '6px',
+              background: `linear-gradient(to right, var(--color-primary) 0%, var(--color-primary) ${rating * 10}%, rgba(255,255,255,0.2) ${rating * 10}%, rgba(255,255,255,0.2) 100%)`
+            }}
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className="bg-[var(--color-bg-card)] rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold">{formatTime(elapsedTime)}</p>
-            <p className="text-sm text-white/60">Duration</p>
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="card p-3.5 text-center group hover:scale-105">
+            <svg className="w-6 h-6 mx-auto mb-1.5 text-[var(--color-primary-light)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-2xl font-bold mb-0.5">{formatTime(elapsedTime)}</p>
+            <p className="text-[10px] text-white/60 font-medium">Duration</p>
           </div>
-          <div className="bg-[var(--color-bg-card)] rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold">
+          <div className="card p-3.5 text-center group hover:scale-105">
+            <svg className="w-6 h-6 mx-auto mb-1.5 text-[var(--color-primary-light)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <p className="text-2xl font-bold mb-0.5">
               {currentWorkout.exercises.length}
             </p>
-            <p className="text-sm text-white/60">Exercises</p>
+            <p className="text-[10px] text-white/60 font-medium">Exercises</p>
           </div>
         </div>
 
         <button
           onClick={handleFinish}
-          className="w-full py-4 rounded-xl bg-[var(--color-primary)] font-semibold"
+          className="w-full py-3 rounded-lg font-bold text-sm btn btn-primary group"
         >
-          Save Workout
+          <span className="flex items-center justify-center gap-2">
+            Save Workout
+            <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+          </span>
         </button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="p-4 bg-[var(--color-bg-dark)]">
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={handleCancel} className="text-white/60">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
+    <div className="flex flex-col h-full animate-fade-in relative">
+      {/* Minimal Header - Just Cancel and Timer */}
+      <div className="px-3 py-2 bg-gradient-to-b from-[var(--color-bg-dark)] to-transparent border-b border-white/10">
+        <div className="flex items-center justify-between">
+          <button 
+            onClick={handleCancel} 
+            className="w-9 h-9 rounded-lg bg-white/10 hover:bg-red-500/20 flex items-center justify-center transition-all duration-300 border border-white/10 hover:border-red-500/40"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          {/* Progress ring timer */}
-          <div className="relative w-12 h-12" aria-label="Elapsed time">
-            {(() => {
-              const target = isTimed ? currentExercise.reps : currentExercise.reps;
-              const progress = Math.min(1, (isTimed ? elapsedTime : exerciseStats.reps) / Math.max(1, target));
-              const deg = Math.round(progress * 360);
-              const bg = `conic-gradient(var(--color-primary) ${deg}deg, rgba(255,255,255,0.12) 0deg)`;
-              return (
-                <>
-                  <div className="absolute inset-0 rounded-full" style={{ background: bg }} />
-                  <div className="absolute inset-1 bg-[var(--color-bg-dark)] rounded-full flex items-center justify-center font-mono text-sm">
-                    {formatTime(elapsedTime)}
-                  </div>
-                </>
-              )
-            })()}
+          
+          {/* Timer with Progress Ring */}
+          <div className="flex items-center gap-2.5">
+            <div className="relative w-14 h-14" aria-label="Elapsed time">
+              {(() => {
+                const target = isTimed ? currentExercise.reps : currentExercise.reps;
+                const progress = Math.min(1, (isTimed ? elapsedTime : exerciseStats.reps) / Math.max(1, target));
+                const deg = Math.round(progress * 360);
+                const bg = `conic-gradient(var(--color-primary-light) ${deg}deg, rgba(255,255,255,0.15) 0deg)`;
+                return (
+                  <>
+                    <div className="absolute inset-0 rounded-full shadow-lg" style={{ background: bg }} />
+                    <div className="absolute inset-1.5 bg-[var(--color-bg-dark)] rounded-full flex items-center justify-center border border-white/10">
+                      <span className="font-mono text-xs font-bold">{formatTime(elapsedTime)}</span>
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+            <div className="text-left">
+              <div className="chip chip-primary text-xs py-1 px-2.5">
+                <span className="font-bold">{currentExerciseIndex + 1}</span>
+                <span className="text-white/60 mx-0.5">/</span>
+                <span>{currentWorkout.exercises.length}</span>
+              </div>
+              <p className="text-[10px] text-white/50 mt-1">Exercise</p>
+            </div>
           </div>
-          <span className="text-sm text-white/60">
-            {currentExerciseIndex + 1}/{currentWorkout.exercises.length}
-          </span>
-        </div>
-
-        <h2 className="text-xl font-bold text-center">
-          {currentExercise.name}
-        </h2>
-        <p className="text-center text-white/60">
-          Target: {currentExercise.reps} {isTimed ? 'sec' : 'reps'}
-        </p>
-        <div className="mt-3 flex items-center justify-center gap-3">
-          <button
-            onClick={() => setVoiceOn(v => !v)}
-            className={`px-3 py-1 rounded-lg text-xs border ${voiceOn ? 'bg-[var(--color-primary)] border-[var(--color-primary)]' : 'bg-white/10 border-white/20'}`}
-            title="Toggle voice feedback"
-          >
-            {voiceOn ? 'Voice: ON' : 'Voice: OFF'}
-          </button>
-          <div className="flex items-center gap-1 text-xs">
-            <span className="text-white/60">Sensitivity:</span>
-            {['lenient','normal','strict'].map((level) => (
-              <button
-                key={level}
-                onClick={() => setSensitivity(level)}
-                className={`px-2 py-1 rounded ${sensitivity === level ? 'bg-[var(--color-primary)]' : 'bg-white/10'}`}
-              >
-                {level}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={handlePauseToggle}
-            className="ml-2 px-3 py-1 rounded-lg text-xs bg-white/10 hover:bg-white/20"
-            title={isPaused ? 'Resume' : 'Pause'}
-          >
-            {isPaused ? 'Resume' : 'Pause'}
-          </button>
         </div>
       </div>
 
-      {/* Pose detection or manual counter */}
-      <div className="flex-1 relative">
+      {/* Exercise Name and Target - More prominent */}
+      <div className="px-4 py-3 bg-gradient-to-b from-transparent to-[var(--color-bg-dark)]/30">
+        <h2 className="text-xl font-bold text-center mb-1 heading-gradient">
+          {currentExercise.name}
+        </h2>
+        <p className="text-center text-white/70 text-sm mb-3">
+          Target: <span className="font-bold text-[var(--color-primary-light)] text-base">{currentExercise.reps}</span> {isTimed ? 'sec' : 'reps'}
+        </p>
+        
+        {/* Settings Controls - Above Camera */}
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          <button
+            onClick={() => setVoiceOn(v => !v)}
+            className={`chip text-xs py-1.5 px-3 transition-all duration-300 flex items-center gap-1.5 ${voiceOn ? 'chip-primary' : 'hover:bg-white/15'}`}
+            title="Toggle voice feedback"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={voiceOn ? "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"} />
+            </svg>
+            <span>{voiceOn ? 'Voice ON' : 'Voice OFF'}</span>
+          </button>
+          
+          {['lenient','normal','strict'].map((level) => (
+            <button
+              key={level}
+              onClick={() => setSensitivity(level)}
+              className={`chip text-xs py-1.5 px-3 transition-all duration-300 ${sensitivity === level ? 'chip-primary' : 'hover:bg-white/15'}`}
+            >
+              {level === 'lenient' ? 'Easy' : level === 'normal' ? 'Normal' : 'Strict'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content Area with Live Stats Overlay */}
+      <div className="flex-1 relative overflow-hidden">
         {currentExercise.hasTracking ? (
-          <PoseDetection
-            exercise={currentExercise}
-            onStatsUpdate={setExerciseStats}
-            voiceEnabled={voiceOn}
-            sensitivity={sensitivity}
-            paused={isPaused || resumeCountdown > 0}
-          />
+          <>
+            <PoseDetection
+              exercise={currentExercise}
+              onStatsUpdate={setExerciseStats}
+              voiceEnabled={voiceOn}
+              sensitivity={sensitivity}
+              paused={isPaused || resumeCountdown > 0}
+            />
+            
+            {/* PROMINENT LIVE STATS OVERLAY - Bottom so it doesn't block camera */}
+            <div className="absolute bottom-4 left-0 right-0 px-4 z-10 pointer-events-none">
+              <div className="flex items-end justify-between gap-3">
+                {/* Good Form - Bottom Left */}
+                <div className="glass rounded-2xl p-3 backdrop-blur-xl border-2 border-[var(--color-success)]/30 shadow-2xl animate-scale-in">
+                  <p className="text-4xl font-black text-[var(--color-success)] mb-1 drop-shadow-lg">
+                    {exerciseStats.goodForm}
+                  </p>
+                  <p className="text-xs text-white/80 font-bold uppercase tracking-wide">Good Form</p>
+                </div>
+                
+                {/* Bad Form - Bottom Right */}
+                <div className="glass rounded-2xl p-3 backdrop-blur-xl border-2 border-[var(--color-accent)]/30 shadow-2xl animate-scale-in">
+                  <p className="text-4xl font-black text-[var(--color-accent)] mb-1 drop-shadow-lg">
+                    {exerciseStats.badForm}
+                  </p>
+                  <p className="text-xs text-white/80 font-bold uppercase tracking-wide">Bad Form</p>
+                </div>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center h-full p-4">
-            <p className="text-6xl font-bold mb-4">{exerciseStats.reps}</p>
-            <p className="text-white/60 mb-8">Manual count</p>
+            <div className="mb-8 text-center">
+              <p className="text-8xl font-black mb-3 bg-gradient-to-br from-[var(--color-primary-light)] to-[var(--color-primary)] bg-clip-text text-transparent drop-shadow-2xl animate-pulse">
+                {exerciseStats.reps}
+              </p>
+              <p className="text-white/70 text-base font-bold uppercase tracking-wider">Manual count</p>
+            </div>
             <div className="flex gap-4">
               <button
                 onClick={() =>
@@ -255,9 +320,9 @@ export default function ActiveWorkout() {
                     reps: Math.max(0, prev.reps - 1),
                   }))
                 }
-                className="w-16 h-16 rounded-full bg-white/10 text-2xl"
+                className="w-16 h-16 rounded-2xl bg-white/10 hover:bg-white/20 text-3xl font-bold border-2 border-white/20 transition-all duration-300 hover:scale-110 active:scale-95 shadow-lg"
               >
-                -
+                −
               </button>
               <button
                 onClick={() =>
@@ -267,7 +332,7 @@ export default function ActiveWorkout() {
                     goodForm: prev.goodForm + 1,
                   }))
                 }
-                className="w-16 h-16 rounded-full bg-[var(--color-primary)] text-2xl"
+                className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-light)] text-3xl font-bold shadow-2xl hover:shadow-[0_0_30px_rgba(124,58,237,0.5)] transition-all duration-300 hover:scale-110 active:scale-95"
               >
                 +
               </button>
@@ -276,53 +341,71 @@ export default function ActiveWorkout() {
         )}
       </div>
 
-      {/* Stats and controls */}
-      <div className="p-4 bg-[var(--color-bg-card)] border-t border-white/10">
-        {currentExercise.hasTracking && (
-          <div className="flex justify-around mb-4 text-center">
-            <div>
-              <p className="text-2xl font-bold">{exerciseStats.reps}</p>
-              <p className="text-xs text-white/60">{isTimed ? 'Seconds' : 'Reps'}</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-[var(--color-success)]">
-                {formPercentage}%
-              </p>
-              <p className="text-xs text-white/60">Good Form</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-[var(--color-accent)]">
-                {exerciseStats.badForm}
-              </p>
-              <p className="text-xs text-white/60">Bad Form</p>
-            </div>
-          </div>
-        )}
-
-        <button
-          onClick={handleExerciseComplete}
-          className="w-full py-4 rounded-xl bg-[var(--color-primary)] font-semibold"
-        >
-          {isLastExercise ? "Finish Workout" : "Next Exercise"}
-        </button>
+      {/* FLOATING ACTION BUTTONS - Sides of screen, don't block camera */}
+      <div className="fixed top-1/2 left-0 right-0 z-20 pointer-events-none transform -translate-y-1/2">
+        <div className="flex items-center justify-between px-2">
+          {/* Pause Button - Left Side */}
+          <button
+            onClick={handlePauseToggle}
+            className={`pointer-events-auto w-16 h-16 rounded-full font-bold transition-all duration-300 shadow-2xl border-2 flex items-center justify-center ${
+              isPaused 
+                ? 'bg-gradient-to-br from-[var(--color-success)] to-green-500 border-green-400 hover:shadow-[0_0_30px_rgba(34,197,94,0.5)] hover:scale-110' 
+                : 'bg-gradient-to-br from-amber-500 to-orange-500 border-amber-400 hover:shadow-[0_0_30px_rgba(251,191,36,0.5)] animate-pulse hover:scale-110'
+            }`}
+            title={isPaused ? 'Resume Workout' : 'Pause Workout'}
+          >
+            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d={isPaused ? "M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" : "M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z"} clipRule="evenodd" />
+            </svg>
+          </button>
+          
+          {/* Next/Finish Button - Right Side */}
+          <button
+            onClick={handleExerciseComplete}
+            className="pointer-events-auto w-16 h-16 rounded-full font-bold btn btn-primary group shadow-2xl hover:shadow-[0_0_40px_rgba(124,58,237,0.6)] border-2 border-purple-400 hover:scale-110 transition-all duration-300 flex items-center justify-center"
+            title={isLastExercise ? "Finish Workout" : "Next Exercise"}
+          >
+            <svg className="w-8 h-8 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d={isLastExercise ? "M5 13l4 4L19 7" : "M14 5l7 7m0 0l-7 7m7-7H3"} />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {(isPaused || resumeCountdown > 0) && (
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center">
-          <div className="text-center">
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 animate-fade-in">
+          <div className="text-center p-8 rounded-2xl bg-[var(--color-bg-card)]/50 backdrop-blur-lg border border-white/20 shadow-2xl animate-scale-in">
             {resumeCountdown > 0 ? (
               <div>
-                <p className="text-white/70 mb-2 text-sm">Resuming in</p>
-                <p className="text-6xl font-bold">{resumeCountdown}</p>
+                <p className="text-white/80 mb-4 text-lg font-medium">Resuming in</p>
+                <div className="relative w-32 h-32 mx-auto mb-4">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-light)] animate-pulse" style={{ opacity: 0.2 }}></div>
+                  <div className="absolute inset-2 rounded-full bg-[var(--color-bg-dark)] flex items-center justify-center">
+                    <p className="text-7xl font-bold bg-gradient-to-br from-[var(--color-primary-light)] to-[var(--color-primary)] bg-clip-text text-transparent animate-pulse">
+                      {resumeCountdown}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-white/60 text-sm">Get ready!</p>
               </div>
             ) : (
               <div>
-                <p className="text-4xl font-bold mb-2">Paused</p>
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[var(--color-warning)]/20 flex items-center justify-center border-4 border-[var(--color-warning)]/40">
+                  <svg className="w-10 h-10 text-[var(--color-warning)]" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <p className="text-4xl font-bold mb-6 heading-gradient">Workout Paused</p>
                 <button
                   onClick={handlePauseToggle}
-                  className="px-6 py-3 rounded-xl bg-[var(--color-primary)] font-semibold"
+                  className="px-8 py-4 rounded-xl font-bold text-lg btn btn-primary"
                 >
-                  Resume
+                  <span className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                    </svg>
+                    Resume
+                  </span>
                 </button>
               </div>
             )}

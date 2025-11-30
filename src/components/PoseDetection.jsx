@@ -11,6 +11,11 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
   // Refs for pose detection state
   const poseRef = useRef(null);
   const rafRef = useRef(0);
+  const sensitivityRef = useRef(sensitivity);
+  const voiceEnabledRef = useRef(voiceEnabled);
+  const pausedRef = useRef(paused);
+  const exerciseRef = useRef(exercise);
+  const onStatsUpdateRef = useRef(onStatsUpdate);
   const statsRef = useRef({ reps: 0, goodForm: 0, badForm: 0 });
   const stateRef = useRef({
     isDescending: false,
@@ -30,6 +35,13 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
     prevElbowAngle: null,
     lastMotionAt: Date.now(),
   });
+
+  // Keep refs in sync without tearing down camera
+  useEffect(() => { sensitivityRef.current = sensitivity }, [sensitivity]);
+  useEffect(() => { voiceEnabledRef.current = voiceEnabled }, [voiceEnabled]);
+  useEffect(() => { pausedRef.current = paused }, [paused]);
+  useEffect(() => { exerciseRef.current = exercise }, [exercise]);
+  useEffect(() => { onStatsUpdateRef.current = onStatsUpdate }, [onStatsUpdate]);
 
   useEffect(() => {
     let mounted = true;
@@ -135,7 +147,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
           const frameLoop = async () => {
             if (!mounted) return;
             try {
-              if (!paused && poseRef.current && videoRef.current && videoRef.current.readyState >= 2) {
+              if (!pausedRef.current && poseRef.current && videoRef.current && videoRef.current.readyState >= 2) {
                 await poseRef.current.send({ image: videoRef.current });
               }
             } catch (_) {
@@ -176,7 +188,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
 
     const speak = (text, opts = {}) => {
       try {
-        if (!voiceEnabled) return;
+        if (!voiceEnabledRef.current) return;
         const synth = window.speechSynthesis;
         if (!synth || !text) return;
         const now = Date.now();
@@ -221,8 +233,9 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
     };
 
     const thr = (base, type = 'angle') => {
-      if (sensitivity === 'lenient') return type === 'angle' ? base + 5 : base * 0.9;
-      if (sensitivity === 'strict') return type === 'angle' ? base - 5 : base * 1.1;
+      const s = sensitivityRef.current;
+      if (s === 'lenient') return type === 'angle' ? base + 5 : base * 0.9;
+      if (s === 'strict') return type === 'angle' ? base - 5 : base * 1.1;
       return base;
     };
 
@@ -253,21 +266,22 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
         drawSkeleton(ctx, lms, canvas.width);
 
         // Analyze pose based on exercise type
-        if (exercise.id === "squats") {
+        const ex = exerciseRef.current || {};
+        if (ex.id === "squats") {
           analyzeSquat(lms, ctx, canvas);
-        } else if (exercise.id === "pushups") {
+        } else if (ex.id === "pushups") {
           analyzePushup(lms, ctx, canvas);
-        } else if (exercise.id === "lunges") {
+        } else if (ex.id === "lunges") {
           analyzeLunge(lms, ctx, canvas);
-        } else if (exercise.id === "jumping-jacks") {
+        } else if (ex.id === "jumping-jacks") {
           analyzeJumpingJack(lms, ctx, canvas);
-        } else if (exercise.id === "crunches") {
+        } else if (ex.id === "crunches") {
           analyzeCrunch(lms, ctx, canvas);
-        } else if (exercise.id === "tricep-dips") {
+        } else if (ex.id === "tricep-dips") {
           analyzeTricepDip(lms, ctx, canvas);
-        } else if (exercise.id === "high-knees") {
+        } else if (ex.id === "high-knees") {
           analyzeHighKnees(lms, ctx, canvas);
-        } else if (exercise.id === "plank") {
+        } else if (ex.id === "plank") {
           analyzePlank(lms, ctx, canvas);
         } else {
           // Generic rep counter for other exercises
@@ -384,14 +398,15 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
       stateRef.current.prevKneeAngle = angle;
 
       // Check for rep
-      if (angle < (105 + (sensitivity === 'lenient' ? 10 : sensitivity === 'strict' ? 0 : 5)) && !stateRef.current.isDescending) {
+      const s1 = sensitivityRef.current;
+      if (angle < (105 + (s1 === 'lenient' ? 10 : s1 === 'strict' ? 0 : 5)) && !stateRef.current.isDescending) {
         stateRef.current.holdFrames++;
         if (stateRef.current.holdFrames >= 3) {
           stateRef.current.isDescending = true;
           stateRef.current.minKneeAngle = angle;
           stateRef.current.holdFrames = 0;
         }
-      } else if (angle > (155 + (sensitivity === 'strict' ? 5 : 0)) && stateRef.current.isDescending) {
+      } else if (angle > (155 + (sensitivityRef.current === 'strict' ? 5 : 0)) && stateRef.current.isDescending) {
         if (now - stateRef.current.lastRepTime > 800) {
           // Check form using tracked bottom
           const torso = landmarks[12];
@@ -417,7 +432,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
           }
 
           setDisplayStats({ ...statsRef.current });
-          onStatsUpdate({ ...statsRef.current });
+          onStatsUpdateRef.current({ ...statsRef.current });
           maybeMotivate();
           stateRef.current.lastRepTime = now;
         }
@@ -452,14 +467,14 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
       if (Math.abs(velE) > 0.7) stateRef.current.lastMotionAt = now;
       stateRef.current.prevElbowAngle = elbowAngle;
 
-      if (elbowAngle < (sensitivity === 'strict' ? 90 : 95) && !stateRef.current.isDescending) {
+      if (elbowAngle < (sensitivityRef.current === 'strict' ? 90 : 95) && !stateRef.current.isDescending) {
         stateRef.current.isDescending = true;
         stateRef.current.minElbowAngle = elbowAngle;
-      } else if (elbowAngle > (sensitivity === 'strict' ? 165 : 160) && stateRef.current.isDescending) {
+      } else if (elbowAngle > (sensitivityRef.current === 'strict' ? 165 : 160) && stateRef.current.isDescending) {
         if (now - stateRef.current.lastRepTime > 800) {
           statsRef.current.reps++;
-          const depthOK = stateRef.current.minElbowAngle <= (sensitivity === 'strict' ? 90 : 95);
-          const straightBody = bodyAngle > (sensitivity === 'strict' ? 165 : 160) && !hipSag(shoulder, hip, ankle);
+          const depthOK = stateRef.current.minElbowAngle <= (sensitivityRef.current === 'strict' ? 90 : 95);
+          const straightBody = bodyAngle > (sensitivityRef.current === 'strict' ? 165 : 160) && !hipSag(shoulder, hip, ankle);
           const faults = [];
           if (!depthOK) faults.push("Go deeper");
           if (!straightBody) faults.push("Keep body straight");
@@ -472,7 +487,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
             setFeedbackAndSpeak(faults.join(" • "));
           }
           setDisplayStats({ ...statsRef.current });
-          onStatsUpdate({ ...statsRef.current });
+          onStatsUpdateRef.current({ ...statsRef.current });
           maybeMotivate();
           stateRef.current.lastRepTime = now;
         }
@@ -499,13 +514,13 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
       if (Math.abs(velLK) > 0.7) stateRef.current.lastMotionAt = now;
       stateRef.current.prevKneeAngle = kneeAngle;
 
-      if (kneeAngle < (sensitivity === 'strict' ? 100 : 105) && !stateRef.current.isDescending) {
+      if (kneeAngle < (sensitivityRef.current === 'strict' ? 100 : 105) && !stateRef.current.isDescending) {
         stateRef.current.isDescending = true;
         stateRef.current.minKneeAngle = kneeAngle;
-      } else if (kneeAngle > (sensitivity === 'strict' ? 165 : 160) && stateRef.current.isDescending) {
+      } else if (kneeAngle > (sensitivityRef.current === 'strict' ? 165 : 160) && stateRef.current.isDescending) {
         if (now - stateRef.current.lastRepTime > 1000) {
           statsRef.current.reps++;
-          const depthOK = stateRef.current.minKneeAngle < (sensitivity === 'strict' ? 95 : 100);
+          const depthOK = stateRef.current.minKneeAngle < (sensitivityRef.current === 'strict' ? 95 : 100);
           const shinVertical = kneeOverAnkle(knee, ankle, 0.12);
           const torso = landmarks[12];
           const upright = torso && !torsoLeanTooMuch(torso, hip, 0.22);
@@ -516,7 +531,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
           if (faults.length === 0) { statsRef.current.goodForm++; setFeedbackAndSpeak("Good lunge"); vibrate(15); }
           else { statsRef.current.badForm++; setFeedbackAndSpeak(faults.join(" • ")); }
           setDisplayStats({ ...statsRef.current });
-          onStatsUpdate({ ...statsRef.current });
+          onStatsUpdateRef.current({ ...statsRef.current });
           maybeMotivate();
           stateRef.current.lastRepTime = now;
         }
@@ -548,7 +563,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
           if (highEnough) { statsRef.current.goodForm++; setFeedbackAndSpeak("Jump!"); vibrate(10); }
           else { statsRef.current.badForm++; setFeedbackAndSpeak("Arms higher"); }
           setDisplayStats({ ...statsRef.current });
-          onStatsUpdate({ ...statsRef.current });
+          onStatsUpdateRef.current({ ...statsRef.current });
           maybeMotivate();
           stateRef.current.lastRepTime = now;
         }
@@ -575,7 +590,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
           const high = stateRef.current.kneePeakHeight < hipY - 0.08;
           if (high) { statsRef.current.goodForm++; setFeedbackAndSpeak("Knees up!"); vibrate(10); }
           else { statsRef.current.badForm++; setFeedbackAndSpeak("Higher knees"); }
-          onStatsUpdate({ ...statsRef.current });
+          onStatsUpdateRef.current({ ...statsRef.current });
           maybeMotivate();
           stateRef.current.lastRepTime = now;
         }
@@ -607,7 +622,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
           if (!kneesBent) faults.push("Bend knees");
           if (faults.length === 0) { statsRef.current.goodForm++; setFeedbackAndSpeak("Nice crunch"); vibrate(10); }
           else { statsRef.current.badForm++; setFeedbackAndSpeak(faults.join(" • ")); }
-          onStatsUpdate({ ...statsRef.current });
+          onStatsUpdateRef.current({ ...statsRef.current });
           maybeMotivate();
           stateRef.current.lastRepTime = now;
         }
@@ -693,7 +708,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
         videoRef.current.srcObject.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [exercise, onStatsUpdate, paused, sensitivity, voiceEnabled]);
+  }, []);
 
   if (error) {
     return (
@@ -722,13 +737,13 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
   }
 
   return (
-    <div className="relative w-full h-[500px] bg-black">
+    <div className="relative w-full bg-black">
       <video ref={videoRef} className="hidden" playsInline muted />
       <canvas
         ref={canvasRef}
         width={600}
         height={640}
-        className="w-full h-[500px] object-contain"
+        className="w-full h-[60vh] sm:h-[65vh] object-contain"
       />
 
       {isLoading && (
@@ -740,22 +755,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
         </div>
       )}
 
-      {!isLoading && (
-        <div className="absolute top-3 left-3 flex items-center gap-2">
-          <span className="chip">
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="12"/></svg>
-            {displayStats.reps || 0}
-          </span>
-          <span className="chip chip-success">
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6L9 17l-5-5"/></svg>
-            {displayStats.reps ? Math.round((displayStats.goodForm / Math.max(1, displayStats.reps)) * 100) : 0}%
-          </span>
-          <span className="chip chip-accent">
-            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            {displayStats.badForm || 0}
-          </span>
-        </div>
-      )}
+      {/* Minimal overlay; stats displayed by parent */}
 
       {feedback && !isLoading && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/60 rounded-lg">
@@ -769,22 +769,7 @@ export default function PoseDetection({ exercise, onStatsUpdate, voiceEnabled = 
         </div>
       )}
 
-      {!isLoading && exercise?.reps && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-[90%] max-w-md">
-          <div className="flex items-center justify-between mb-1 text-xs text-white/70">
-            <span>{exercise.unit === 'seconds' || exercise.id === 'plank' ? 'Seconds' : 'Reps'}</span>
-            <span>
-              {Math.min(displayStats.reps || 0, exercise.reps)} / {exercise.reps}
-            </span>
-          </div>
-          <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[var(--color-primary)] transition-all"
-              style={{ width: `${Math.min(100, ((displayStats.reps || 0) / (exercise.reps || 1)) * 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
+      {/* Progress bar moved to parent UI for cleaner layout */}
     </div>
   );
 }
