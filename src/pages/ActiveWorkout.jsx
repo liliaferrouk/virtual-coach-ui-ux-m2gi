@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkout } from "../context/WorkoutContext";
 import PoseDetection from "../components/PoseDetection";
@@ -24,6 +24,12 @@ export default function ActiveWorkout() {
   const [sensitivity, setSensitivity] = useState('normal'); // 'lenient' | 'normal' | 'strict'
   const [isPaused, setIsPaused] = useState(false);
   const [resumeCountdown, setResumeCountdown] = useState(0);
+  const [voiceCmdOn, setVoiceCmdOn] = useState(false);
+  const [listeningActive, setListeningActive] = useState(false);
+  const [lastVoiceCmd, setLastVoiceCmd] = useState("");
+  const recognitionRef = useRef(null);
+  const micStreamRef = useRef(null);
+  const [micError, setMicError] = useState("");
 
   // Redirect if no workout
   useEffect(() => {
@@ -93,6 +99,140 @@ export default function ActiveWorkout() {
       setIsPaused(true);
     }
   };
+
+  // Ensure microphone permission helper
+  const ensureMicPermission = async () => {
+    try {
+      // Security check: mic requires HTTPS or localhost
+      const host = window.location.hostname;
+      const isLocalhost = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(host);
+      if (!window.isSecureContext && !isLocalhost) {
+        setMicError("Mic requires HTTPS or localhost.");
+        return false;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) return true; // best effort
+      // If we already hold a stream, consider mic ready
+      if (micStreamRef.current) return true;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
+      setMicError("");
+      // We don't need to keep the stream for Web Speech; stop tracks to free mic
+      setTimeout(() => { try { stream.getTracks().forEach(t => t.stop()); } catch (_) {} }, 0);
+      micStreamRef.current = null;
+      return true;
+    } catch (e) {
+      setMicError("Microphone blocked. Allow mic in browser site settings.");
+      return false;
+    }
+  };
+
+  // Toggle handler that requests mic permission and starts SR within user gesture
+  const handleToggleVoiceCmd = async () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      setMicError("Voice commands not supported in this browser.");
+      return;
+    }
+    if (!voiceCmdOn) {
+      const ok = await ensureMicPermission();
+      if (!ok) return; // don't enable if mic blocked
+      if (!recognitionRef.current) {
+        const rec = new SR();
+        rec.continuous = true;
+        rec.interimResults = false;
+        rec.lang = 'en-US';
+        // Bind minimal handlers before starting to satisfy Chrome
+        rec.onstart = () => setListeningActive(true);
+        rec.onend = () => { setListeningActive(false); if (voiceCmdOn) { try { rec.start(); } catch (_) {} } };
+        rec.onerror = (e) => { setListeningActive(false); if (e?.error === 'not-allowed') setMicError('Microphone blocked. Allow mic in site settings.'); };
+        recognitionRef.current = rec;
+      }
+      try { recognitionRef.current.start(); setListeningActive(true); } catch (_) {}
+      setVoiceCmdOn(true);
+    } else {
+      try { recognitionRef.current && recognitionRef.current.stop(); } catch (_) {}
+      setListeningActive(false);
+      setVoiceCmdOn(false);
+    }
+  };
+
+  // Voice commands (pause/resume/next/back/mute/sensitivity)
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    // Gracefully stop if disabled or unsupported
+    if (!SR) {
+      setListeningActive(false);
+      return;
+    }
+
+    // Create recognition instance once
+    if (!recognitionRef.current) {
+      const rec = new SR();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+      recognitionRef.current = rec;
+    }
+
+    const rec = recognitionRef.current;
+
+    // Always bind fresh handlers so they capture latest state
+    rec.onresult = (event) => {
+      const res = event.results[event.results.length - 1];
+      if (!res || !res.isFinal) return;
+      const transcript = (res[0]?.transcript || '').toLowerCase().trim();
+      if (!transcript) return;
+      setLastVoiceCmd(transcript);
+
+      const has = (...alts) => alts.some(a => transcript.includes(a));
+      if (has('pause', 'stop')) { if (!isPaused) setIsPaused(true); return; }
+      if (has('resume', 'continue', 'go on', 'play')) {
+        if (isPaused) {
+          setResumeCountdown(3);
+          const id = setInterval(() => {
+            setResumeCountdown((c) => { if (c <= 1) { clearInterval(id); setIsPaused(false); return 0; } return c - 1; });
+          }, 1000);
+        }
+        return;
+      }
+      if (has('cancel workout', 'end workout', 'exit workout', 'quit workout', 'cancel')) { handleCancel(); return; }
+      if (has('next', 'skip')) { handleExerciseComplete(); return; }
+      if (has('back', 'previous', 'go back')) {
+        if (currentExerciseIndex > 0) {
+          setCurrentExerciseIndex((i) => Math.max(0, i - 1));
+          setExerciseStats({ reps: 0, goodForm: 0, badForm: 0 });
+        }
+        return;
+      }
+      if (has('mute', 'silent')) { setVoiceOn(false); return; }
+      if (has('unmute', 'sound on', 'speak')) { setVoiceOn(true); return; }
+      if (has('lenient', 'easy')) { setSensitivity('lenient'); return; }
+      if (has('normal', 'medium', 'regular')) { setSensitivity('normal'); return; }
+      if (has('strict', 'hard')) { setSensitivity('strict'); return; }
+    };
+
+    rec.onstart = () => setListeningActive(true);
+    rec.onend = () => {
+      setListeningActive(false);
+      // Auto-restart only when voice commands are enabled
+      if (voiceCmdOn) {
+        try { rec.start(); } catch (_) {}
+      }
+    };
+    rec.onerror = () => { setListeningActive(false); };
+
+    // Start is handled in the click handler to keep a user gesture.
+    // Stop here when disabled to ensure cleanup.
+    if (!voiceCmdOn) {
+      try { rec.stop(); } catch (_) {}
+      setListeningActive(false);
+    }
+
+    return () => {
+      try { rec.stop(); } catch (_) {}
+      setListeningActive(false);
+    };
+  }, [voiceCmdOn, isPaused, currentExerciseIndex]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -225,17 +365,20 @@ export default function ActiveWorkout() {
                 )
               })()}
             </div>
-            <div className="text-left">
-              <div className="chip chip-primary text-xs py-1 px-2.5">
-                <span className="font-bold">{currentExerciseIndex + 1}</span>
-                <span className="text-white/60 mx-0.5">/</span>
-                <span>{currentWorkout.exercises.length}</span>
+              <div className="text-left">
+                <div className="chip chip-primary text-xs py-1 px-2.5">
+                  <span className="font-bold">{currentExerciseIndex + 1}</span>
+                  <span className="text-white/60 mx-0.5">/</span>
+                  <span>{currentWorkout.exercises.length}</span>
+                </div>
+                <p className="text-[10px] text-white/50 mt-1">Exercise</p>
               </div>
-              <p className="text-[10px] text-white/50 mt-1">Exercise</p>
+              {voiceCmdOn && (
+                <span className={`chip ${listeningActive ? 'chip-primary' : ''} text-[10px]`}>Cmds {listeningActive ? 'ON' : '...'}</span>
+              )}
             </div>
           </div>
         </div>
-      </div>
 
       {/* Exercise Name and Target - More prominent */}
       <div className="px-4 py-3 bg-gradient-to-b from-transparent to-[var(--color-bg-dark)]/30">
@@ -258,6 +401,21 @@ export default function ActiveWorkout() {
             </svg>
             <span>{voiceOn ? 'Voice ON' : 'Voice OFF'}</span>
           </button>
+          <button
+            onClick={handleToggleVoiceCmd}
+            className={`chip text-xs py-1.5 px-3 transition-all duration-300 flex items-center gap-1.5 ${voiceCmdOn ? 'chip-primary' : 'hover:bg-white/15'}`}
+            title="Toggle voice commands"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7v4a7 7 0 11-14 0V7m14 0a2 2 0 10-4 0m4 0h-4M5 7a2 2 0 114 0H5" />
+            </svg>
+            <span>{voiceCmdOn ? 'Cmds ON' : 'Cmds OFF'}</span>
+          </button>
+          {micError && (
+            <span className="chip text-xs py-1.5 px-3 border-[var(--color-accent)]/50 text-[var(--color-accent)]">
+              {micError}
+            </span>
+          )}
           
           {['lenient','normal','strict'].map((level) => (
             <button
