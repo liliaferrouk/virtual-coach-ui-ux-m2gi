@@ -59,7 +59,7 @@
 
 <video src="ui%20ux%20projet%20demo.mp4" controls width="100%"></video>
 
-> If the video doesn't render, [click here to download and watch it](ui%20ux%20projet%20demo.mp4).
+https://github.com/user-attachments/assets/3a75ec7c-0546-4918-b406-4f756129243b
 
 ---
 
